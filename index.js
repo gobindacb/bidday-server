@@ -3,7 +3,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const port = process.env.PORT || 5000
-
+const jwt = require("jsonwebtoken");
 const app = express()
 
 // middleware
@@ -20,6 +20,21 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 
+function createToken(user) {
+    const token = jwt.sign(
+        {
+            email: user.email
+        },
+        'secret',
+        { expiresIn: '7d' });
+    return token;
+}
+
+function verifyToken (req, res, next ){
+    const token = req.headers.authorization.split("")[1];
+    console.log(token)
+    next();
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jakl9vf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`
 
@@ -95,18 +110,21 @@ async function run() {
         })
 
         // post social/google user to db
-        app.post('/user', async(req, res) =>{
+        app.post('/user', verifyToken, async (req, res) => {
             const user = req.body;
-            const isUserExist = await usersCollection.findOne({ email: user?.email});
+            const token = createToken(user)
+            console.log(token)
+            const isUserExist = await usersCollection.findOne({ email: user?.email });
             console.log(isUserExist);
-            if(isUserExist?._id){
+            if (isUserExist?._id) {
                 return res.send({
                     status: "success",
                     message: "Login Success",
+                    token
                 });
             }
-                const result = await usersCollection.insertOne(user);
-                res.send(result)
+            await usersCollection.insertOne(user);
+            res.send(token)
         })
 
         // get all comments from db
